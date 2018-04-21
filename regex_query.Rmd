@@ -76,9 +76,15 @@ tidy_tags <-
 regex_faq %>%
   select(view_count, question_id) %>%
   left_join(tidy_tags) %>%
-  tidyr::replace_na(replace = as.list(rep(0, ncol(.))))
-### Todo join on to views
+  mutate_all(.funs = funs(replace_na), 0) %>%
+  select(-question_id) %>%
+  lm(view_count ~ ., .) %>%
+  summary()
 ```
+### Observations
+R^2 is rubbish but model does indicate some tags are associated with higher counts. It would be interesting to try a model with all tags.
 
-
-
+# TODO
+* Model with all tags.
+* Analysis of regex, R tag pair.
+* Text analysis/topic modelling of Question content.
