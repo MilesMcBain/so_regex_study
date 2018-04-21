@@ -1,0 +1,75 @@
+---
+title: "Analysis of Regex on So"
+author: "Miles McBain"
+date: "2018-04-21"
+output: html_document
+---
+
+```{r }
+library(stackr)
+library(tidyverse)
+library(tidytext)
+
+regex_faq <- read_rds("./data/all_faqs.Rds")
+
+coocurring_tags <-
+  regex_faq %>%
+  select(tags) %>%
+  unnest_tokens(tag, tags) %>%
+  filter(tag != "regex")
+
+tag_counts <-
+  coocurring_tags %>%
+  count(tag, sort = TRUE)
+
+print(tag_counts, n = 300)
+
+names(regex_faq)
+```
+
+# observations:
+ R is the 15th most commonly coocurring tag. The tags do not give much insight since they mostly refer to programming environments. Although we do see some concepts ranked highly:
+
+```{r}
+ regex_concepts <-
+   c("replace",
+   "match",
+   "parsing", 
+   "validation",
+   "split",
+   "rewrite",
+   "negation",
+   "escaping",
+   "search",
+   "greedy",
+   "lookarounds",
+   "substring",
+   "whitespace")
+
+ tag_counts %>%
+      filter(tag %in% regex_concepts) %>%
+      ggplot(aes(x = tag, y = n)) +
+        geom_bar()
+```
+
+## Weighted tag analysis
+A linear model might be an interesting way to model the concept importance:
+
+```{r}
+tags_id_view_list <-
+  regex_faq %>%
+  select(question_id, view_count, tags) %>%
+  unnest_tokens(tag, tags) %>%
+  filter(tag %in% regex_concepts) %>%
+  mutate(count = 1) 
+
+tags_dtm <-
+  tags_id_view_list %>%
+  cast_dtm(question_id, tag, count) %>%
+  as.matrix()
+
+### Todo join on to views
+```
+
+
+
