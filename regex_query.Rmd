@@ -28,7 +28,7 @@ names(regex_faq)
 ```
 
 # observations:
- R is the 15th most commonly coocurring tag. The tags do not give much insight since they mostly refer to programming environments. Although we do see some concepts ranked highly:
+R is the 15th most commonly coocurring tag. The tags do not give much insight since they mostly refer to programming environments. Although we do see some concepts ranked highly:
 
 ```{r}
  regex_concepts <-
@@ -48,8 +48,8 @@ names(regex_faq)
 
  tag_counts %>%
       filter(tag %in% regex_concepts) %>%
-      ggplot(aes(x = tag, y = n)) +
-        geom_bar()
+      ggplot(aes(x = fct_reorder(tag,n), y = n)) +
+        geom_col()
 ```
 
 ## Weighted tag analysis
@@ -68,6 +68,15 @@ tags_dtm <-
   cast_dtm(question_id, tag, count) %>%
   as.matrix()
 
+tidy_tags <- 
+  tidy(tags_dtm) %>%
+  rename(question_id = .rownames) %>%
+  mutate(question_id = as.integer(question_id))
+
+regex_faq %>%
+  select(view_count, question_id) %>%
+  left_join(tidy_tags) %>%
+  tidyr::replace_na(replace = as.list(rep(0, ncol(.))))
 ### Todo join on to views
 ```
 
