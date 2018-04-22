@@ -9,7 +9,7 @@ output: html_document
 library(stackr)
 library(tidyverse)
 library(tidytext)
-
+library(lubridate)
 regex_faq <- read_rds("./data/all_faqs.Rds")
 
 coocurring_tags <-
@@ -60,22 +60,22 @@ tags_id_view_list <-
   regex_faq %>%
   select(question_id, view_count, tags) %>%
   unnest_tokens(tag, tags) %>%
-  filter(tag %in% regex_concepts) %>%
   mutate(count = 1) 
 
-tags_dtm <-
+concept_tags_dtm <-
   tags_id_view_list %>%
+  filter(tag %in% regex_concepts) %>%
   cast_dtm(question_id, tag, count) %>%
   as.matrix()
 
-tidy_tags <- 
-  tidy(tags_dtm) %>%
+tidy_concept_tags <- 
+  tidy(concept_tags_dtm) %>%
   rename(question_id = .rownames) %>%
   mutate(question_id = as.integer(question_id))
 
 regex_faq %>%
   select(view_count, question_id) %>%
-  left_join(tidy_tags) %>%
+  left_join(tidy_concept_tags) %>%
   mutate_all(.funs = funs(replace_na), 0) %>%
   select(-question_id) %>%
   lm(view_count ~ ., .) %>%
@@ -84,7 +84,58 @@ regex_faq %>%
 ### Observations
 R^2 is rubbish but model does indicate some tags are associated with higher counts. It would be interesting to try a model with all tags.
 
+## Model popular tags + concepts
+Here I try a concept tag model controlling for popular framework tags and question age.
+
+```{r}
+faq_views_days <- 
+  regex_faq %>%
+  select(question_id, view_count, creation_date) %>%
+  mutate(days_since_creation = interval(creation_date,
+                                        ymd_hms("2018-04-21 12:00:00")) / days(1)) %>%
+  select(-creation_date)
+
+popular_tags <-
+  tag_counts$tag[1:30]
+
+tidy_populr_concept_tags <-
+  tags_id_view_list %>%
+  filter(tag %in% union(regex_concepts, popular_tags)) %>%
+  cast_dtm(question_id, tag, count) %>%
+  as.matrix() %>%
+  tidy() %>%
+  rename(question_id = .rownames) %>%
+  mutate(question_id = as.integer(question_id))
+
+tag_model <- 
+  faq_views_days %>%
+  left_join(tidy_populr_concept_tags) %>%
+  mutate_all(.funs = funs(replace_na), 0) %>%
+  select(-question_id) %>%
+  lm(view_count ~ ., .)
+
+summary(tag_model)
+
+tidy(tag_model) %>%
+  filter(term %in% regex_concepts) %>%
+  arrange(desc(estimate))
+
+```
+
+### Observations
+Controlling for question age and popular framework effects, there is still evidence that the following regex concept tags are associated with higher question views: negation, lookarounds, validation, greedy, and whitespace.
+
+The signs of the framework tags are mostly negative, which seemed odd, until I realised that a specific framework tag splinters the potential viewership. It makes sense that general regular expression questions get more views within the regex tag. I also tried fitting a set of tag interactions with days since creation. This didn't change the overall story much, the same concept tags as before had strong interaction effects, suggesting they grow faster. 
+
+The diagnostics of the model are all poor, but we know we have unobserved variables creating noise. This is not meant to be a predictive model - its use is comparing the strength if tag effects.
+
+## Regex + R tag pair
+Here I filter down to R tags within the regex faqs to see what the other tags and titles are.
+
+```{r}
+
+
+```
 # TODO
-* Model with all tags.
 * Analysis of regex, R tag pair.
 * Text analysis/topic modelling of Question content.
