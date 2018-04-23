@@ -111,14 +111,22 @@ tag_model <-
   faq_views_days %>%
   left_join(tidy_populr_concept_tags) %>%
   mutate_all(.funs = funs(replace_na), 0) %>%
-  select(-question_id) %>%
+  mutate(match = as.integer(match | matching)) %>%     #merge match columns
+  select(-question_id, -matching) %>%
   lm(view_count ~ ., .)
 
 summary(tag_model)
 
-tidy(tag_model) %>%
-  filter(term %in% regex_concepts) %>%
-  arrange(desc(estimate))
+tidy(tag_model, conf.int = TRUE) %>%
+  mutate(concept = term %in% regex_concepts) %>%
+  ggplot(aes(x = estimate, y = fct_reorder(term, conf.high), colour = concept)) +
+    geom_point() +
+    geom_errorbarh(aes(xmin = conf.low,
+                       xmax = conf.high)) +
+  ggtitle("Esitmated effect of tag presence on Stack Overflow FAQ views",
+          subtitle = "Controlling for popular frameworks and question age") +
+  xlab("Estimated effect on views with 95% CI") +
+  ylab("FAQ Tags coocurring with 'regex'")
 
 ```
 
@@ -128,6 +136,8 @@ Controlling for question age and popular framework effects, there is still evide
 The signs of the framework tags are mostly negative, which seemed odd, until I realised that a specific framework tag splinters the potential viewership. It makes sense that general regular expression questions get more views within the regex tag. I also tried fitting a set of tag interactions with days since creation. This didn't change the overall story much, the same concept tags as before had strong interaction effects, suggesting they grow faster. 
 
 The diagnostics of the model are all poor, but we know we have unobserved variables creating noise. This is not meant to be a predictive model - its use is comparing the strength if tag effects.
+
+note: I noticed 'match' and 'matching' as separate tags, and so I decided to merge the tags.
 
 ## Regex + R tag pair
 Here I filter down to R tags within the regex faqs to see what the other tags and titles are.
