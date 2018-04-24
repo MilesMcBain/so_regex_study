@@ -113,11 +113,11 @@ tag_model <-
   mutate_all(.funs = funs(replace_na), 0) %>%
   mutate(match = as.integer(match | matching)) %>%     #merge match columns
   select(-question_id, -matching) %>%
-  lm(view_count ~ ., .)
+  lm(log(view_count) ~ ., .) # updated to log-response
 
 summary(tag_model)
 
-tidy(tag_model, conf.int = TRUE) %>%
+tidy(tag_model, conf.int = TRUE ) %>%
   mutate(concept = term %in% regex_concepts) %>%
   ggplot(aes(x = estimate, y = fct_reorder(term, conf.high), colour = concept)) +
     geom_point() +
@@ -139,6 +139,15 @@ The diagnostics of the model are all poor, but we know we have unobserved variab
 
 note: I noticed 'match' and 'matching' as separate tags, and so I decided to merge the tags.
 
+### Log Views Model
+
+The log(view_count) model fits a lot better, with saner diagnostics and this makes sense given the distribution of views which has a long upper tail.
+
+Under this model the ranking of concerns is different: whitespace, escaping, validation, substring, match, lookarounds, rewrite, negation, greedy, replace, parsing.
+
+Intuitively this ranking feels better to me. Whitespace and escaping are definitely common concerns.
+
+
 ## Regex + R tag pair
 Here I filter down to R tags within the regex faqs to see what the other tags and titles are.
 
@@ -147,5 +156,6 @@ Here I filter down to R tags within the regex faqs to see what the other tags an
 
 ```
 # TODO
+* Fit log views
 * Analysis of regex, R tag pair.
 * Text analysis/topic modelling of Question content.
