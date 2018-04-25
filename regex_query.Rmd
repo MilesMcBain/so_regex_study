@@ -148,14 +148,53 @@ Under this model the ranking of concerns is different: whitespace, escaping, val
 Intuitively this ranking feels better to me. Whitespace and escaping are definitely common concerns.
 
 
+## A look at R questions
+Regex FAQ's with R tags ranked in descending order of views:
+
+```{r}
+ ### a look at some of the R questions
+regex_faq %>%
+  filter(grepl(",r,|,r-faq,", tags)) %>%
+  arrange(desc(view_count)) %>%
+  select(title, link, view_count)
+
+
+ ###
+
+```
 ## Regex + R tag pair
 Here I filter down to R tags within the regex faqs to see what the other tags and titles are.
 
 ```{r}
-
+r_cotags_counts <- 
+  regex_faq %>%
+  filter(grepl(",r,|,r-faq,", tags)) %>%
+  select(question_id, view_count, tags) %>%
+  unnest_tokens(tag, tags) %>%
+  filter(!(tag %in% c("r", "r-faq", "regex"))) %>%
+  count(tag) %>%
+  arrange(desc(n)) %>%
+  print(n = 50)
 
 ```
+
+The most frequently occurring conceptual tags are: string, gsub, grep, split, stringr, strsplit, replace, date, matching, substring.
+
+'string' is the highest but is not descriptive. I decided to drill into this group more.
+
+### R string tag
+```{r}
+string_r_tags <- 
+  regex_faq %>%
+  arrange(desc(view_count)) %>%
+  filter(map_lgl(strsplit(x = tags, split = ","),
+                 ~all(c("r", "string") %in% .))) %>%
+  select(title, link)
+```
+
+It seems 'string' is a catch all category for splitting, extraction - numbers, substitution and removal - particularly dealing with whitespace. 
+
 # TODO
-* Fit log views
+
 * Analysis of regex, R tag pair.
 * Text analysis/topic modelling of Question content.
