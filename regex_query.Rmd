@@ -5,6 +5,8 @@ date: "2018-04-21"
 output: html_document
 ---
 
+# Start
+
 ```{r }
 library(stackr)
 library(tidyverse)
@@ -31,7 +33,7 @@ names(regex_faq)
 R is the 15th most commonly coocurring tag. The tags do not give much insight since they mostly refer to programming environments. Although we do see some concepts ranked highly:
 
 ```{r}
- regex_concepts <-
+regex_concepts <-
    c("replace",
    "match",
    "parsing", 
@@ -85,10 +87,10 @@ regex_faq %>%
 R^2 is rubbish but model does indicate some tags are associated with higher counts. It would be interesting to try a model with all tags.
 
 ## Model popular tags + concepts
-Here I try a concept tag model controlling for popular framework tags and question age.
+Here I try a concept tag model for the log of views, controlling for popular framework tags and question age.
 
 ```{r}
-faq_views_days <- 
+faq_views_days <-
   regex_faq %>%
   select(question_id, view_count, creation_date) %>%
   mutate(days_since_creation = interval(creation_date,
@@ -117,7 +119,7 @@ tag_model <-
 
 summary(tag_model)
 
-tidy(tag_model, conf.int = TRUE ) %>%
+tidy(tag_model, conf.int = TRUE) %>%
   mutate(concept = term %in% regex_concepts) %>%
   ggplot(aes(x = estimate, y = fct_reorder(term, conf.high), colour = concept)) +
     geom_point() +
@@ -125,36 +127,50 @@ tidy(tag_model, conf.int = TRUE ) %>%
                        xmax = conf.high)) +
   ggtitle("Esitmated effect of tag presence on Stack Overflow FAQ views",
           subtitle = "Controlling for popular frameworks and question age") +
-  xlab("Estimated effect on views with 95% CI") +
+  xlab("Estimated effect on log(views) with 95% CI") +
   ylab("FAQ Tags coocurring with 'regex'")
 
 ```
 
 ### Observations
-Controlling for question age and popular framework effects, there is still evidence that the following regex concept tags are associated with higher question views: negation, lookarounds, validation, greedy, and whitespace.
+Controlling for question age and popular framework effects, there is still
+evidence that the following regex concept tags are associated with higher
+question views: negation, lookarounds, validation, greedy, and whitespace.
 
-The signs of the framework tags are mostly negative, which seemed odd, until I realised that a specific framework tag splinters the potential viewership. It makes sense that general regular expression questions get more views within the regex tag. I also tried fitting a set of tag interactions with days since creation. This didn't change the overall story much, the same concept tags as before had strong interaction effects, suggesting they grow faster. 
+The signs of the framework tags are mostly negative, which seemed odd, until I
+realised that a specific framework tag splinters the potential viewership. It
+makes sense that general regular expression questions get more views within the
+regex tag. I also tried fitting a set of tag interactions with days since
+creation. This didn't change the overall story much, the same concept tags as
+before had strong interaction effects, suggesting they grow faster.
 
-The diagnostics of the model are all poor, but we know we have unobserved variables creating noise. This is not meant to be a predictive model - its use is comparing the strength if tag effects.
+The diagnostics of the model are all poor, but we know we have unobserved
+variables creating noise. This is not meant to be a predictive model - its use
+is comparing the strength if tag effects.
 
-note: I noticed 'match' and 'matching' as separate tags, and so I decided to merge the tags.
+note: I noticed 'match' and 'matching' as separate tags, and so I decided to
+merge the tags.
 
 ### Log Views Model
 
-The log(view_count) model fits a lot better, with saner diagnostics and this makes sense given the distribution of views which has a long upper tail.
+The log(view_count) model fits a lot better, with saner diagnostics and this
+makes sense given the distribution of views which has a long upper tail.
 
-Under this model the ranking of concerns is different: whitespace, escaping, validation, substring, match, lookarounds, rewrite, negation, greedy, replace, parsing.
+Under this model the ranking of concerns is different: whitespace, escaping,
+validation, substring, match, lookarounds, rewrite, negation, greedy, replace,
+parsing.
 
-Intuitively this ranking feels better to me. Whitespace and escaping are definitely common concerns.
+Intuitively this ranking feels better to me. Whitespace and escaping are
+definitely common concerns.
 
 
 ## A look at R questions
 Regex FAQ's with R tags ranked in descending order of views:
 
 ```{r}
- ### a look at some of the R questions
+### a look at some of the R questions
 regex_faq %>%
-  filter(grepl(",r,|,r-faq,", tags)) %>%
+  filter(grepl("\b\r\\b|\\br-faq,", tags)) %>%
   arrange(desc(view_count)) %>%
   select(title, link, view_count)
 
@@ -166,9 +182,9 @@ regex_faq %>%
 Here I filter down to R tags within the regex faqs to see what the other tags and titles are.
 
 ```{r}
-r_cotags_counts <- 
+r_cotags_counts <-
   regex_faq %>%
-  filter(grepl(",r,|,r-faq,", tags)) %>%
+  filter(grepl("\\br\\b|\\br-faq\\b", tags)) %>%
   select(question_id, view_count, tags) %>%
   unnest_tokens(tag, tags) %>%
   filter(!(tag %in% c("r", "r-faq", "regex"))) %>%
@@ -184,7 +200,7 @@ The most frequently occurring conceptual tags are: string, gsub, grep, split, st
 
 ### R string tag
 ```{r}
-string_r_tags <- 
+string_r_tags <-
   regex_faq %>%
   arrange(desc(view_count)) %>%
   filter(map_lgl(strsplit(x = tags, split = ","),
@@ -192,9 +208,66 @@ string_r_tags <-
   select(title, link)
 ```
 
-It seems 'string' is a catch all category for splitting, extraction - numbers, substitution and removal - particularly dealing with whitespace. 
+It seems 'string' is a catch all category for splitting, extraction - numbers,
+substitution and removal - particularly dealing with whitespace.
+
+### R Tag Topic Modelling
+The R cotags were not very descriptive so I did not think the linear model
+approach from earlier would provide much insight. Topic modelling was
+investigated. A question immediately arising is what should topic modelling be
+done on? The title? The question text? Both?
+
+#### Title Topics
+
+```{r}
+library(tm)
+library(topicmodels)
+
+stop_words
+
+### let's try just the titles.
+title_text_tfidf <- 
+  regex_faq %>%
+  filter(grepl(x = tags, pattern = "\\br\\b|\\br-faq\\b")) %>%
+  select(question_id, title) %>%
+  unnest_tokens(title_word, title) %>%
+  count(question_id, title_word) %>%
+  bind_tf_idf(title_word, question_id, n) 
+
+title_text_matix <-
+  title_text_tfidf %>%
+  filter(!(title_word %in% stop_words$word)) %>%
+  cast_dtm(question_id, title_word, n)
+
+
+title_lda <- LDA(title_text_matix, k =6)
+
+tidy_title_lda <- tidy(title_lda)
+
+### top n per topic
+tidy_title_lda %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta) %>%
+  print(n = 60)
+```
+##### Observations
+
+The choice of k = 6 was arbitrary but it does seem like there are some topics
+that are distinct, and familiar. 4 and 6 are my favourites. I'd label them
+'search' and 'extract' respectively.
+
+#### Title + Text topics
+I decided to pool the title and the question text for another round of topic modelling.
+
+```{r}
+regex_faq
+```
 
 # TODO
 
 * Analysis of regex, R tag pair.
 * Text analysis/topic modelling of Question content.
+ 
+ 
